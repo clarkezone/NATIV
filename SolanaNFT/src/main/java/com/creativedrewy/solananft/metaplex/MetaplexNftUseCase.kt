@@ -1,12 +1,18 @@
 package com.creativedrewy.solananft.metaplex
 
+import android.os.Debug
 import android.util.Log
 import com.creativedrewy.nativ.chainsupport.IBlockchainNftLoader
 import com.creativedrewy.nativ.chainsupport.LoaderNftResult
 import com.creativedrewy.nativ.chainsupport.SupportedChain
 import com.creativedrewy.nativ.chainsupport.nft.*
 import com.creativedrewy.solananft.accounts.AccountRepository
+import com.metaplex.lib.Metaplex
+import com.metaplex.lib.drivers.indenty.ReadOnlyIdentityDriver
+import com.metaplex.lib.drivers.storage.OkHttpSharedStorageDriver
+import com.metaplex.lib.solana.SolanaConnectionDriver
 import com.solana.core.PublicKey
+import com.solana.networking.RPCEndpoint
 import com.solana.vendor.borshj.Borsh
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
@@ -26,6 +32,22 @@ class MetaplexNftUseCase @Inject constructor(
      * Load and emit the full set of *possible* NFTs, then emit each NFT's metadata as it is loaded
      */
     override suspend fun loadNftsThenMetaForAddress(chain: SupportedChain, address: String): Flow<LoaderNftResult> = flow {
+        val ownerPublicKey = PublicKey(address)
+        val solanaConnection = SolanaConnectionDriver(RPCEndpoint.mainnetBetaSolana)
+        val solanaIdentityDriver = ReadOnlyIdentityDriver(ownerPublicKey, solanaConnection.solanaRPC)
+        val storageDriver = OkHttpSharedStorageDriver()
+        val metaplex = Metaplex(solanaConnection, solanaIdentityDriver, storageDriver)
+        metaplex.nft.findAllByOwner(ownerPublicKey).apply {
+            this.onSuccess { nfts ->
+                val nftList = nfts.filterNotNull() // useful to remove null
+
+
+            }.onFailure {
+                it.message?.let { it1 -> Log.v("", it1) }
+            }
+        }
+
+        // TODO replace all this with above
         val metaUris = loadNftMetadataUris(address)
 
         val statusMap = mutableMapOf<String, NftMetaStatus>()
